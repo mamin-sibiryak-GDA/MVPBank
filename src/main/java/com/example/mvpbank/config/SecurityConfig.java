@@ -1,46 +1,52 @@
-// Конфигурация безопасности для Spring Security
-
+// Конфигурация безопасности Spring Security с использованием JWT
 package com.example.mvpbank.config;
 
+import com.example.mvpbank.security.JwtAuthFilter;
+import com.example.mvpbank.security.UserDetailsServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-@Configuration // Говорим Spring, что это класс конфигурации
-@EnableWebSecurity // Включаем поддержку Spring Security
-@RequiredArgsConstructor // Lombok создаёт конструктор для всех final-полей
+@Configuration // Помечает класс как конфигурационный бин Spring
+@EnableWebSecurity // Включает поддержку безопасности веб-приложений
+@EnableMethodSecurity // Разрешает использование @PreAuthorize, @Secured и т.п.
+@RequiredArgsConstructor // Автоматически создаёт конструктор с финальными полями
 public class SecurityConfig {
 
-    @Bean // Определяем бин SecurityFilterChain, который конфигурирует цепочку фильтров безопасности
+    private final JwtAuthFilter jwtAuthFilter; // JWT-фильтр для проверки токенов
+    private final UserDetailsServiceImpl userDetailsService; // Кастомный сервис загрузки пользователей
+
+    @Bean // Бин для хэширования паролей
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean // Бин менеджера аутентификации, нужного для login
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
+
+    @Bean // Основной фильтр цепочки безопасности
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(AbstractHttpConfigurer::disable) // Отключаем CSRF, так как у нас REST API (нет форм)
+                .csrf(csrf -> csrf.disable()) // Отключаем CSRF (актуально для REST API)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Без сохранения сессий
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN") // Только ADMIN может использовать эти эндпоинты
-                        .requestMatchers("/api/auth/**").permitAll() // Разрешаем доступ ко всем auth-эндпоинтам
-                        .requestMatchers("/api/accounts/**").authenticated()
-                        .anyRequest().authenticated() // Все остальные требуют авторизацию
+                        .requestMatchers("/api/auth/**").permitAll() // Разрешаем доступ к /api/auth/** без авторизации
+                        .anyRequest().authenticated() // Все остальные запросы требуют авторизации
                 )
-                .httpBasic(httpBasic -> {});
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class); // Добавляем наш JWT-фильтр до UsernamePasswordAuthenticationFilter
 
-        return http.build(); // Собираем и возвращаем конфигурацию
-    }
-
-    @Bean // Определяем бин для PasswordEncoder
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(); // Используем BCrypt — безопасный способ хеширования паролей
-    }
-
-    @Bean // Определяем бин AuthenticationManager
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager(); // Получаем AuthenticationManager из конфигурации
+        return http.build();
     }
 }

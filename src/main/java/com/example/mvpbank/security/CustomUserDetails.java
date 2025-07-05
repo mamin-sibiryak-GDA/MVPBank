@@ -4,6 +4,7 @@
 package com.example.mvpbank.security;
 
 import com.example.mvpbank.model.User; // Импорт модели пользователя
+import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority; // Интерфейс для представления прав пользователя
 import org.springframework.security.core.authority.SimpleGrantedAuthority; // Упрощенная реализация GrantedAuthority
 import org.springframework.security.core.userdetails.UserDetails; // Интерфейс, который должен реализовывать пользователь
@@ -11,8 +12,10 @@ import org.springframework.security.core.userdetails.UserDetails; // Интер�
 import java.util.Collection;
 import java.util.Collections; // Используется, если у пользователя пока одна роль или нет ролей
 
+@Getter
 public class CustomUserDetails implements UserDetails {
 
+    // Метод, позволяющий получить оригинальный объект User при необходимости
     private final User user; // Объект нашего пользователя
 
     // Конструктор принимает пользователя и сохраняет его для использования в методах интерфейса
@@ -62,8 +65,4 @@ public class CustomUserDetails implements UserDetails {
         return true;
     }
 
-    // Метод, позволяющий получить оригинальный объект User при необходимости
-    public User getUser() {
-        return user;
-    }
 }

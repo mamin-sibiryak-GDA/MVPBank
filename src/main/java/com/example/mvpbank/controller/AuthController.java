@@ -1,33 +1,45 @@
-// Контроллер для обработки запросов на регистрацию и логин
-
+// Контроллер для аутентификации и регистрации пользователей
 package com.example.mvpbank.controller;
 
 import com.example.mvpbank.dto.UserLoginRequest;
 import com.example.mvpbank.dto.UserRegistrationRequest;
+import com.example.mvpbank.model.User;
+import com.example.mvpbank.security.JwtUtil;
 import com.example.mvpbank.service.AuthService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-@RestController // Помечает класс как REST-контроллер
-@RequestMapping("/api/auth") // Базовый путь для всех эндпоинтов этого контроллера
-@RequiredArgsConstructor // Lombok: создаёт конструктор для всех final-полей
+@RestController // Указывает, что этот класс — REST-контроллер
+@RequestMapping("/api/auth") // Базовый путь для всех эндпоинтов внутри этого контроллера
+@RequiredArgsConstructor // Lombok-аннотация: генерирует конструктор для final полей
 public class AuthController {
 
-    private final AuthService authService; // Сервис, содержащий бизнес-логику
+    private final AuthService authService; // Сервис, отвечающий за регистрацию и логин
+    private final JwtUtil jwtUtil;         // Утилита для генерации JWT токена
 
-    // Эндпоинт для регистрации пользователя
-    @PostMapping("/register")
-    public ResponseEntity<String> register(@RequestBody @Valid UserRegistrationRequest request) {
-        String result = authService.register(request); // Вызываем сервис регистрации
-        return ResponseEntity.ok(result); // Возвращаем результат клиенту
+    @PostMapping("/register") // Эндпоинт для регистрации нового пользователя
+    public ResponseEntity<String> register(@RequestBody UserRegistrationRequest request) {
+        try {
+            authService.register(request); // Пытаемся зарегистрировать
+            return ResponseEntity.ok("Регистрация прошла успешно"); // 200 OK
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Ошибка регистрации: " + e.getMessage()); // 400 Bad Request
+        }
     }
 
-    // Эндпоинт для логина пользователя
-    @PostMapping("/login")
-    public ResponseEntity<String> login(@RequestBody @Valid UserLoginRequest request) {
-        String result = authService.login(request); // Вызываем сервис логина
-        return ResponseEntity.ok(result); // Возвращаем результат клиенту
+    @PostMapping("/login") // Эндпоинт для входа в систему
+    public ResponseEntity<String> login(@RequestBody UserLoginRequest request) {
+        try {
+            User user = authService.authenticate(request); // Пытаемся аутентифицировать
+            String token = jwtUtil.generateToken(user.getUsername(), user.getRole()); // Генерируем токен
+            return ResponseEntity.ok(token); // 200 OK и токен в теле
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Ошибка входа: " + e.getMessage()); // 401 Unauthorized
+        }
     }
 }
+
